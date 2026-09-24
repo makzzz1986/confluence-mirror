@@ -1,0 +1,93 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app: confluence-mirror
+  name: confluence-mirror
+  namespace: confluence-mirror
+spec:
+  jobTemplate:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: confluence-mirror
+    spec:
+      template:
+        metadata:
+          creationTimestamp: null
+          labels:
+            app: solr-schemas-backup
+          annotations:
+            kubectl.kubernetes.io/default-container: confluence-mirror-script
+            karpenter.sh/do-not-disrupt: "true"
+        spec:
+          imagePullSecrets:
+            - name: confluence-mirror-registry
+          initContainers:
+            - name: confluence-mirror-script
+              image: confluence-mirror:1.0.0
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: CONFLUENCE_URL
+                  value: https://MYCONFLUENCE_URL
+                - name: SPACE_KEY
+                  value: MYSPACE
+                - name: USER_EMAIL
+                  value: MYTOKEN_USE_EXTERNAL_SECRETS
+                - name: USER_TOKEN
+                  value: MYTOKEN_USE_EXTERNAL_SECRETS
+                - name: DEPTH
+                  value: "10"
+                - name: FAVICON_URL
+                  value: https://FAVICON_URL/favicon-update.ico
+                - name: EXCLUSIONS_LIST
+                  value: "euit,notes,draft,handover"
+              resources:
+                limits:
+                  cpu: "4"
+                  memory: 8Gi
+                requests:
+                  cpu: "4"
+                  memory: 8Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+              volumeMounts:
+                - mountPath: /tmp/conf_backup/
+                  name: data
+          containers:
+            - name: aws-cli
+              image: amazon/aws-cli
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -c
+              args:
+                - |
+                  aws s3 cp --recursive /tmp/conf_backup/ s3://MY_S3_BUCKET_CONFLUENCE_BACKUP/ &&
+                  aws cloudfront create-invalidation --distribution-id DISTRIBUTION_ID --paths "/*"
+              resources:
+                limits:
+                  cpu: 600m
+                  memory: 1Gi
+                requests:
+                  cpu: 600m
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+              volumeMounts:
+                - mountPath: /tmp/conf_backup/
+                  name: data
+          serviceAccount: confluence-mirror
+          serviceAccountName: confluence-mirror
+          restartPolicy: Never
+          terminationGracePeriodSeconds: 1
+          volumes:
+            - emptyDir:
+                sizeLimit: 30Gi
+              name: data
+  schedule: 0 2 */7 * *
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  suspend: false
