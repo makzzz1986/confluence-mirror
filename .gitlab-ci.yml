@@ -1,0 +1,50 @@
+.podman: &podman
+  variables:
+    PODMAN_SETTINGS_DIR: "/tmp/containers"
+    PODMAN_STORAGE_CONF: "${PODMAN_SETTINGS_DIR}/storage.conf"
+    PODMAN_REGISTRIES_CONF: "${PODMAN_SETTINGS_DIR}/registries.conf"
+    PODMAN_IGNORE_CGROUPSV1_WARNING: "true"
+    STORAGE_DRIVER: overlay
+    BUILDAH_FORMAT: docker
+    HOME: /tmp
+  image: quay.io/podman/stable:latest
+  before_script:
+    - mkdir -p $PODMAN_SETTINGS_DIR
+    - |
+      echo -e '[storage]
+      driver = "overlay"
+      [storage.options]
+      mount_program = "/usr/bin/fuse-overlayfs"' > $PODMAN_STORAGE_CONF
+    # if you are not running your jobs in our "OLX Gitlab shared runners" please remove the "registry.mirror" section or point the location to your Docker registry cache.
+    - |
+      echo -e 'unqualified-search-registries = ["registry.fedoraproject.org", "registry.access.redhat.com", "quay.io", "docker.io"]
+      short-name-mode = "permissive"
+      [[registry]]
+      location = "docker.io"
+    - echo "$CI_REGISTRY_PASSWORD" | podman login --username "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  tags:
+    - shared-amd64
+
+stages:
+- build
+
+build:tag:
+  <<: *podman
+  stage: build
+  script:
+    - podman build --rm --platform=linux/amd64,linux/arm64 --manifest "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG" .
+    - podman manifest push "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG" --format v2s2
+  rules:
+    - if: $CI_COMMIT_TAG
+
+
+build:test:
+  <<: *podman
+  stage: build
+  script:
+    - podman build --rm --platform=linux/amd64,linux/arm64 --manifest "$CI_REGISTRY_IMAGE:test" .
+    - podman manifest push "$CI_REGISTRY_IMAGE:test" --format v2s2
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"

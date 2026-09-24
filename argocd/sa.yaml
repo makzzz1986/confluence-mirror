@@ -1,0 +1,22 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: confluence-mirror
+  namespace: confluence-mirror
+  labels:
+    app: confluence-mirror
+  annotations:
+    argocd.argoproj.io/sync-wave: '-85'
+    eks.amazonaws.com/role-arn: IRSA_ARN
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: confluence-mirror-eso
+  namespace: confluence-mirror
+  labels:
+    app: confluence-mirror
+  annotations:
+    argocd.argoproj.io/sync-wave: '-85'
+    eks.amazonaws.com/role-arn: IRSA_ARN

@@ -1,0 +1,7 @@
+resources:
+  - cronjob.yaml
+  - sa.yaml
+
+images:
+  - name: confluence-backup:1.0.0
+    newTag: 1.0.5

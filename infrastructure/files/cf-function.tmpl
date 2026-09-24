@@ -1,0 +1,47 @@
+function handler(event) {
+    var request = event.request;
+    
+    // Allowed CIDR ranges (add or remove)
+    var cidrs = [
+    %{ for cidr in cidr_list ~}
+        "${cidr}",
+    %{ endfor ~}
+    ];
+
+    if (isAllowed(event.viewer.ip, cidrs)) {
+        return request;
+    }
+
+    return {
+        statusCode: 403,
+        statusDescription: "Forbidden",
+    };
+}
+
+/* --------- Helpers --------- */
+
+// Return true if IP belongs to any CIDR
+function isAllowed(ip, cidrList) {
+    var ipNum = ipToInt(ip);
+    for (var i = 0; i < cidrList.length; i++) {
+        var parts = cidrList[i].split("/");
+        var base = parts[0];
+        var mask = parseInt(parts[1], 10);
+        if (inCIDR(ipNum, ipToInt(base), mask)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Convert IPv4 string to 32-bit integer
+function ipToInt(ip) {
+    var o = ip.split(".");
+    return ((o[0] << 24) | (o[1] << 16) | (o[2] << 8) | (o[3] << 0)) >>> 0;
+}
+
+// Check if IP is in CIDR
+function inCIDR(ip, base, mask) {
+    var shift = 32 - mask;
+    return (ip >>> shift) === (base >>> shift);
+}
